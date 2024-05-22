@@ -1,0 +1,7 @@
+__pycache__/
+*.py[cod]
+/checkpoints
+/lightning_logs
+/data
+.idea
+
