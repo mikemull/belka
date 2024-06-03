@@ -46,21 +46,24 @@ def build_training_set(
     return df
 
 
-def sample_training_data():
+def sample_training_data(df_input, frac=0.8, sample_size=None, num_diverse=None):
     logging.info('Sampling from balanced dataset')
-    df_balanced = pd.read_parquet('../brd4_train_balanced.parquet')
-    if diverse:
+    df_test = None
+    if num_diverse:
         logging.info('Generating diverse set')
         index = generate_diverse_set('../brd4_smiles.csv', num_diverse)
-        df_sample = df_balanced.iloc[index]
+        df_sample = df_input.iloc[index]
     else:
         if sample_size:
-            df_sample = df_balanced.sample(sample_size, axis='index')
+            df_sample = df_input.sample(sample_size, axis='index')
         else:
-            df_sample = df_balanced
+            df_sample = df_input.sample(frac=frac, axis='index')
+            df_test = df_input.drop(df_sample.index)
 
-    df_sample[['molecule_smiles', 'binds']].to_csv('brd4_smiles_sample.csv', index=False)
-    logging.info('Done!')
+    return (
+        df_sample[['id', 'molecule_smiles', 'Canonical_Smiles', 'binds']],
+        df_test[['id', 'molecule_smiles', 'Canonical_Smiles', 'binds']]
+    )
 
 
 if __name__ == '__main__':
@@ -68,11 +71,22 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(prog='Belka workflow')
     parser.add_argument('-i', '--input')
+    parser.add_argument('-o', '--output')
     parser.add_argument('-b', '--build', action='store_true')
     parser.add_argument('--balanced', action='store_true')
+    parser.add_argument('--binds', type=int, default=1000)
+    parser.add_argument('--total', type=int, default=2000)
 
     args = parser.parse_args()
 
-    df_training_data = build_training_set(args.input, balanced=args.balanced)
+    df_training_data = build_training_set(
+        args.input,
+        balanced=args.balanced,
+        num_positives=args.binds,
+        num_total=args.total)
+    df_training_data, df_test_data = sample_training_data(df_training_data, frac=0.8)
     logger.info(df_training_data.info())
+    logger.info(df_test_data.info())
+    df_training_data.to_parquet(f'{args.output}_train.parquet')
+    df_test_data.to_parquet(f'{args.output}_test.parquet')
     logger.info('Done!')

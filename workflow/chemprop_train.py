@@ -12,8 +12,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)-8s %(me
 logger = logging.getLogger(__name__)
 
 
-def setup_and_train(input_file_path, max_epochs=10):
+def setup_and_train(input_file_path, max_epochs=10, checkpoint=None):
 
+    logger.info(f'{max_epochs=} {checkpoint=}')
     num_workers = 0
     smiles_column = 'molecule_smiles'
     target_columns = ['binds']
@@ -66,7 +67,11 @@ def setup_and_train(input_file_path, max_epochs=10):
     batch_norm = True
     metric_list = [nn.metrics.RMSEMetric(), nn.metrics.MAEMetric()]
 
-    mpnn = models.MPNN(mp, agg, ffn, batch_norm, metric_list)
+    if checkpoint:
+        logger.info(f'Loading model from checkpoint {checkpoint}')
+        mpnn = models.MPNN.load_from_checkpoint(checkpoint)
+    else:
+        mpnn = models.MPNN(mp, agg, ffn, batch_norm, metric_list)
 
     logger.info(process.memory_info().rss)
 
@@ -82,7 +87,8 @@ def setup_and_train(input_file_path, max_epochs=10):
     )
 
     logger.info(process.memory_info().rss)
-    trainer.fit(mpnn, train_loader, val_loader)  # , ckpt_path='./checkpoints/epoch=9-step=250000.ckpt')
+
+    trainer.fit(mpnn, train_loader, val_loader, ckpt_path=checkpoint)
 
     logger.info(process.memory_info().rss)
 
@@ -92,6 +98,8 @@ if __name__ == '__main__':
 
     parser = argparse.ArgumentParser(prog='Belka workflow')
     parser.add_argument('training_data', type=Path, help='Path to the training dataset')
+    parser.add_argument('--max-epochs', type=int, default=10, help='Number of epochs to train')
+    parser.add_argument('--checkpoint', type=Path, help='Path to the model checkpoint')
     args = parser.parse_args()
 
-    setup_and_train(args.training_data, max_epochs=10)
+    setup_and_train(args.training_data, max_epochs=args.max_epochs, checkpoint=args.checkpoint)
