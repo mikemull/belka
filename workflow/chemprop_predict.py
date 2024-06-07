@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import torch
 from lightning import pytorch as pl
 from pathlib import Path
@@ -33,8 +34,9 @@ def predict(checkpoint_path, df_test, smiles_column='molecule_smiles'):
     return df_test
 
 
-def score(checkpoint_path, test_path, smile_column='molecule_smiles'):
-    df_pred = predict(checkpoint_path, test_path, smile_column)
+def ap_score(checkpoint_path, test_path, smile_column='molecule_smiles'):
+    df_test = pd.read_parquet(test_path)
+    df_pred = predict(checkpoint_path, df_test, smile_column)
 
     return average_precision_score(df_pred.binds, df_pred.pred, average='micro')
 
@@ -47,5 +49,5 @@ if __name__ == '__main__':
     parser.add_argument('test', type=Path, help='Path to the test dataset')
     args = parser.parse_args()
 
-    score = predict(args.checkpoint, args.test)
+    score = ap_score(args.checkpoint, args.test, 'Canonical_Smiles')
     print(score)
