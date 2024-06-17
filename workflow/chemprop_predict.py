@@ -1,8 +1,9 @@
 import numpy as np
+import pandas as pd
 import torch
 from lightning import pytorch as pl
 from pathlib import Path
-from sklearn.metrics import average_precision_score
+from sklearn.metrics import average_precision_score, classification_report, confusion_matrix
 
 from chemprop import data, featurizers, models
 
@@ -16,13 +17,13 @@ def predict(checkpoint_path, df_test, smiles_column='molecule_smiles'):
 
     featurizer = featurizers.SimpleMoleculeMolGraphFeaturizer()
     test_dset = data.MoleculeDataset(test_data, featurizer=featurizer)
-    test_loader = data.build_dataloader(test_dset, shuffle=False)
+    test_loader = data.build_dataloader(test_dset, shuffle=False, num_workers=0)
 
     with torch.inference_mode():
         trainer = pl.Trainer(
             logger=None,
             enable_progress_bar=True,
-            accelerator="cpu",
+            accelerator="auto",
             devices=1
         )
         test_preds = trainer.predict(mpnn, test_loader)
@@ -33,10 +34,14 @@ def predict(checkpoint_path, df_test, smiles_column='molecule_smiles'):
     return df_test
 
 
-def score(checkpoint_path, test_path, smile_column='molecule_smiles'):
-    df_pred = predict(checkpoint_path, test_path, smile_column)
+def ap_score(df_pred_class):
+    return average_precision_score(df_pred_class.binds, df_pred_class.pred, average='micro')
 
-    return average_precision_score(df_pred.binds, df_pred.pred, average='micro')
+
+def report(df_pred_class):
+
+    print(classification_report(df_pred_class.binds, df_pred_class.pred > 0.5))
+    print(confusion_matrix(df_pred_class.binds, df_pred_class.pred > 0.5))
 
 
 if __name__ == '__main__':
@@ -47,5 +52,9 @@ if __name__ == '__main__':
     parser.add_argument('test', type=Path, help='Path to the test dataset')
     args = parser.parse_args()
 
-    score = predict(args.checkpoint, args.test)
+    df_test = pd.read_parquet(args.test)
+    df_pred = predict(args.checkpoint, df_test, 'Canonical_Smiles')
+
+    score = ap_score(df_pred)
     print(score)
+    report(df_pred)
