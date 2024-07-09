@@ -57,6 +57,14 @@ def merge_test(framework='polars'):
     print(f"{framework},{t.timeit(1)},{process.memory_info().rss}")
 
 
+def load_test(framework='polars'):
+
+    func = functools.partial(pd.read_parquet, './data/train_brd4.parquet')
+
+    t = timeit.Timer(func)
+    print(f"{framework},{t.timeit(1)}")
+
+
 if __name__ == '__main__':
     import argparse
 
@@ -70,3 +78,6 @@ if __name__ == '__main__':
 
     if args.test == 'merge':
         merge_test(args.lib)
+
+    if args.test == 'load':
+        load_test(args.lib)
